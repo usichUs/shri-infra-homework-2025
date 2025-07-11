@@ -68,9 +68,11 @@ jobs:
           git push origin releases/${{ github.run_number }}
 
       - name: Login to Yandex Container Registry
+        env:
+          YC_SA_JSON_CREDENTIALS: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
         run: |
-          echo "${{ secrets.YC_SA_JSON_CREDENTIALS }}" > key.json
-          cat key.json | docker login --username json_key --password-stdin cr.yandex
+          echo "${YC_SA_JSON_CREDENTIALS}" > key.json
+          docker login --username json_key --password-stdin cr.yandex < key.json
           rm key.json
 
       - name: Build and push Docker image
