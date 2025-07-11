@@ -3,12 +3,12 @@ name: Hotfix
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Hotfix version (e.g., 1.0.1)"
+      release_version:
+        description: "Release version to fix (e.g., 8)"
         required: true
         type: string
       issue_number:
-        description: "Issue number for hotfix"
+        description: "Release issue number"
         required: true
         type: string
 
@@ -17,9 +17,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout release branch
         uses: actions/checkout@v4
         with:
+          ref: releases/${{ inputs.release_version }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -50,18 +51,50 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build -t cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }} .
-          docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}
+          # Создаем теги для hotfix
+          docker build -t cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.release_version }}_fix${{ github.run_number }} .
+          docker tag cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.release_version }}_fix${{ github.run_number }} cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.release_version }}_latest
+
+          # Загружаем образы
+          docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.release_version }}_fix${{ github.run_number }}
+          docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.release_version }}_latest
 
       - name: Create git tag
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git tag ${{ inputs.version }}
-          git push origin ${{ inputs.version }}
+          git tag ${{ inputs.release_version }}_fix${{ github.run_number }}
+          git push origin ${{ inputs.release_version }}_fix${{ github.run_number }}
 
-      - name: Comment on issue
+      - name: Get commits since last tag
+        id: commits
         run: |
-          gh issue comment ${{ inputs.issue_number }} --body "Hotfix версии ${{ inputs.version }} создан $(date '+%Y-%m-%d %H:%M:%S'). Автор: ${{ github.actor }}"
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --oneline --pretty=format:"- %s (%h)")
+          else
+            COMMITS=$(git log --oneline --pretty=format:"- %s (%h)" ${LAST_TAG}..HEAD)
+          fi
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Checkout for gh command
+        uses: actions/checkout@v4
+
+      - name: Comment on release issue
+        run: |
+          COMMENT_BODY="## 🔧 Hotfix ${{ inputs.release_version }}_fix${{ github.run_number }}
+
+          📅 **Дата фикса:** $(date '+%Y-%m-%d %H:%M:%S')
+          👤 **Автор фикса:** ${{ github.actor }}
+
+          ## 📝 Список изменений:
+          ${{ steps.commits.outputs.commits }}
+
+          ## 🐳 Docker образ:
+          \`cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.release_version }}_fix${{ github.run_number }}\`"
+
+          gh issue comment ${{ inputs.issue_number }} --body "$COMMENT_BODY"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
