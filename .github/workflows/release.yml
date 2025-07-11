@@ -2,11 +2,6 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Release version (e.g., 1.0.0)"
-        required: true
-        type: string
 
 jobs:
   release:
@@ -36,38 +31,78 @@ jobs:
       - name: Build application
         run: npm run build
 
+      - name: Create release branch
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git checkout -b releases/${{ github.run_number }}
+          git push origin releases/${{ github.run_number }}
+
       - name: Login to Yandex Container Registry
         run: |
           echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' | docker login --username json_key --password-stdin cr.yandex
 
       - name: Build and push Docker image
         run: |
-          docker build -t cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }} .
-          docker tag cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }} cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}_latest
-          docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}
-          docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}_latest
+          docker build -t cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ github.run_number }} .
+          docker tag cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ github.run_number }} cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ github.run_number }}_latest
+          docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ github.run_number }}
+          docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ github.run_number }}_latest
 
       - name: Create git tag
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git tag ${{ inputs.version }}
-          git push origin ${{ inputs.version }}
+          git tag ${{ github.run_number }}
+          git push origin ${{ github.run_number }}
+
+      - name: Get commits since last release
+        id: commits
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --oneline --pretty=format:"- %s (%h)")
+          else
+            COMMITS=$(git log --oneline --pretty=format:"- %s (%h)" ${LAST_TAG}..HEAD)
+          fi
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Update CHANGELOG
         run: |
-          echo "# ${{ inputs.version }} - $(date '+%Y-%m-%d')" > CHANGELOG_NEW.md
+          echo "# Версия ${{ github.run_number }} - $(date '+%Y-%m-%d')" > CHANGELOG_NEW.md
           echo "" >> CHANGELOG_NEW.md
-          git log --oneline $(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD >> CHANGELOG_NEW.md
+          echo "${{ steps.commits.outputs.commits }}" >> CHANGELOG_NEW.md
           echo "" >> CHANGELOG_NEW.md
-          cat CHANGELOG.md >> CHANGELOG_NEW.md
+          if [ -f CHANGELOG.md ]; then
+            cat CHANGELOG.md >> CHANGELOG_NEW.md
+          fi
           mv CHANGELOG_NEW.md CHANGELOG.md
           git add CHANGELOG.md
-          git commit -m "Update CHANGELOG for version ${{ inputs.version }}"
+          git commit -m "Update CHANGELOG for version ${{ github.run_number }}"
           git push
 
-      - name: Create issue
+      - name: Create release issue
         run: |
-          gh issue create --title "Release ${{ inputs.version }}" --body "Релиз версии ${{ inputs.version }} создан $(date '+%Y-%m-%d %H:%M:%S'). Автор: ${{ github.actor }}"
+          ISSUE_BODY="**Релиз версии ${{ github.run_number }}**
+
+          📅 **Дата:** $(date '+%Y-%m-%d %H:%M:%S')
+          👤 **Автор:** ${{ github.actor }}
+          🏷️ **Версия:** ${{ github.run_number }}
+          🌿 **Ветка:** releases/${{ github.run_number }}
+
+          ## 📝 Список изменений:
+          ${{ steps.commits.outputs.commits }}
+
+          ## 🐳 Docker образ:
+          \`cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ github.run_number }}\`
+
+          ## 🔗 Ссылки:
+          - [Container Registry](https://console.cloud.yandex.ru/folders/${{ secrets.YC_FOLDER_ID }}/container-registry/registries/${{ secrets.YC_REGISTRY_ID }})
+          - [Релизная ветка](https://github.com/${{ github.repository }}/tree/releases/${{ github.run_number }})
+          - [Тег ${{ github.run_number }}](https://github.com/${{ github.repository }}/releases/tag/${{ github.run_number }})"
+
+          gh issue create --title "Release ${{ github.run_number }}" --body "$ISSUE_BODY"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
