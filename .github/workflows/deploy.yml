@@ -41,6 +41,9 @@ jobs:
             # Проверяем что контейнер запустился
             docker ps | grep shri-app
 
+      - name: Checkout code for gh command
+        uses: actions/checkout@v4
+
       - name: Comment on issue
         run: |
           gh issue comment ${{ inputs.issue_number }} --body "Релиз версии ${{ inputs.version }} выкачен в прод $(date '+%Y-%m-%d %H:%M:%S'). Автор: ${{ github.actor }}"
