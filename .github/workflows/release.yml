@@ -31,6 +31,35 @@ jobs:
       - name: Build application
         run: npm run build
 
+      - name: Get commits since last release
+        id: commits
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --oneline --pretty=format:"- %s (%h)")
+          else
+            COMMITS=$(git log --oneline --pretty=format:"- %s (%h)" ${LAST_TAG}..HEAD)
+          fi
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG in main
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          echo "# Версия ${{ github.run_number }} - $(date '+%Y-%m-%d')" > CHANGELOG_NEW.md
+          echo "" >> CHANGELOG_NEW.md
+          echo "${{ steps.commits.outputs.commits }}" >> CHANGELOG_NEW.md
+          echo "" >> CHANGELOG_NEW.md
+          if [ -f CHANGELOG.md ]; then
+            cat CHANGELOG.md >> CHANGELOG_NEW.md
+          fi
+          mv CHANGELOG_NEW.md CHANGELOG.md
+          git add CHANGELOG.md
+          git commit -m "Update CHANGELOG for version ${{ github.run_number }}"
+          git push
+
       - name: Create release branch
         run: |
           git config user.name "GitHub Actions"
@@ -55,33 +84,6 @@ jobs:
           git config user.email "actions@github.com"
           git tag ${{ github.run_number }}
           git push origin ${{ github.run_number }}
-
-      - name: Get commits since last release
-        id: commits
-        run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            COMMITS=$(git log --oneline --pretty=format:"- %s (%h)")
-          else
-            COMMITS=$(git log --oneline --pretty=format:"- %s (%h)" ${LAST_TAG}..HEAD)
-          fi
-          echo "commits<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMITS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Update CHANGELOG
-        run: |
-          echo "# Версия ${{ github.run_number }} - $(date '+%Y-%m-%d')" > CHANGELOG_NEW.md
-          echo "" >> CHANGELOG_NEW.md
-          echo "${{ steps.commits.outputs.commits }}" >> CHANGELOG_NEW.md
-          echo "" >> CHANGELOG_NEW.md
-          if [ -f CHANGELOG.md ]; then
-            cat CHANGELOG.md >> CHANGELOG_NEW.md
-          fi
-          mv CHANGELOG_NEW.md CHANGELOG.md
-          git add CHANGELOG.md
-          git commit -m "Update CHANGELOG for version ${{ github.run_number }}"
-          git push
 
       - name: Create release issue
         run: |
