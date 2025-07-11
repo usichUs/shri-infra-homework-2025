@@ -4,60 +4,60 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Hotfix version (e.g., 1.0.1)'
+        description: "Hotfix version (e.g., 1.0.1)"
         required: true
         type: string
       issue_number:
-        description: 'Issue number for hotfix'
+        description: "Issue number for hotfix"
         required: true
         type: string
 
 jobs:
   hotfix:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22'
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: Run tests
-      run: npm test
-      
-    - name: Run linter
-      run: npm run lint
-      
-    - name: Build application
-      run: npm run build
-      
-    - name: Login to Yandex Container Registry
-      run: |
-        echo ${{ secrets.YC_SA_JSON_CREDENTIALS }} | docker login --username json_key --password-stdin cr.yandex
-        
-    - name: Build and push Docker image
-      run: |
-        docker build -t cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }} .
-        docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}
-        
-    - name: Create git tag
-      run: |
-        git config user.name "GitHub Actions"
-        git config user.email "actions@github.com"
-        git tag ${{ inputs.version }}
-        git push origin ${{ inputs.version }}
-        
-    - name: Comment on issue
-      run: |
-        gh issue comment ${{ inputs.issue_number }} --body "Hotfix версии ${{ inputs.version }} создан $(date '+%Y-%m-%d %H:%M:%S'). Автор: ${{ github.actor }}"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Build application
+        run: npm run build
+
+      - name: Login to Yandex Container Registry
+        run: |
+          echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' | docker login --username json_key --password-stdin cr.yandex
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }} .
+          docker push cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}
+
+      - name: Create git tag
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag ${{ inputs.version }}
+          git push origin ${{ inputs.version }}
+
+      - name: Comment on issue
+        run: |
+          gh issue comment ${{ inputs.issue_number }} --body "Hotfix версии ${{ inputs.version }} создан $(date '+%Y-%m-%d %H:%M:%S'). Автор: ${{ github.actor }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
