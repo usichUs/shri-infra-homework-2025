@@ -17,47 +17,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Login to Yandex Container Registry
-        env:
-          YC_SA_JSON_CREDENTIALS: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-        run: |
-          echo "${YC_SA_JSON_CREDENTIALS}" > key.json
-          docker login --username json_key --password-stdin cr.yandex < key.json
-          rm key.json
-
       - name: Deploy to production
-        run: |
-          # Создаем временный SSH ключ с правильными переносами строк
-          echo "${{ secrets.VM_SSH_KEY }}" | tr -d '\r' > ssh_key
-          chmod 600 ssh_key
-
-          # Проверяем формат ключа
-          head -1 ssh_key
-
-          # Подключаемся к серверу и выполняем команды
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ssh_key ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
             # Проверяем что Docker установлен
             docker --version
-            
+
             # Остановка старого контейнера
             docker stop shri-app || true
             docker rm shri-app || true
-            
-            # Авторизация в registry (через файл для избежания проблем с кавычками)
-            echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' > /tmp/key.json
-            cat /tmp/key.json | docker login --username json_key --password-stdin cr.yandex
-            rm /tmp/key.json
-            
+
+            # Авторизация в registry
+            echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' | docker login --username json_key --password-stdin cr.yandex
+
             # Загрузка и запуск нового образа
             docker pull cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}
             docker run -d --name shri-app -p 3000:3000 cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}
-            
+
             # Проверяем что контейнер запустился
             docker ps | grep shri-app
-          EOF
-
-          # Удаляем временный ключ
-          rm ssh_key
 
       - name: Comment on issue
         run: |
