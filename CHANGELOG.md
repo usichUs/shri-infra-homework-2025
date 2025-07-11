@@ -1,3 +1,7 @@
+# Версия 9 - 2025-07-11
+
+- fixed workflows (507de20)
+
 # Версия 8 - 2025-07-11
 
 - fixed release workflow (f904b4a)
