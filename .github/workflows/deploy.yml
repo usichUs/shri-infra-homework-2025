@@ -1,0 +1,43 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g., 1.0.0)'
+        required: true
+        type: string
+      issue_number:
+        description: 'Issue number for deployment'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Login to Yandex Container Registry
+      run: |
+        echo ${{ secrets.YC_SA_JSON_CREDENTIALS }} | docker login --username json_key --password-stdin cr.yandex
+        
+    - name: Deploy to production
+      run: |
+        ssh -o StrictHostKeyChecking=no -i <(echo "${{ secrets.VM_SSH_KEY }}") ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
+          # Остановка старого контейнера
+          docker stop shri-app || true
+          docker rm shri-app || true
+          
+          # Авторизация в registry
+          echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' | docker login --username json_key --password-stdin cr.yandex
+          
+          # Загрузка и запуск нового образа
+          docker pull cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}
+          docker run -d --name shri-app -p 3000:3000 cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}
+        EOF
+        
+    - name: Comment on issue
+      run: |
+        gh issue comment ${{ inputs.issue_number }} --body "Релиз версии ${{ inputs.version }} выкачен в прод $(date '+%Y-%m-%d %H:%M:%S'). Автор: ${{ github.actor }}"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
