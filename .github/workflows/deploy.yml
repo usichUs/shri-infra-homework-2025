@@ -27,7 +27,12 @@ jobs:
 
       - name: Deploy to production
         run: |
-          ssh -o StrictHostKeyChecking=no -i <(echo "${{ secrets.VM_SSH_KEY }}") ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
+          # Создаем временный SSH ключ
+          echo "${{ secrets.VM_SSH_KEY }}" > ssh_key
+          chmod 600 ssh_key
+
+          # Подключаемся к серверу и выполняем команды
+          ssh -o StrictHostKeyChecking=no -i ssh_key ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
             # Остановка старого контейнера
             docker stop shri-app || true
             docker rm shri-app || true
@@ -39,6 +44,9 @@ jobs:
             docker pull cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}
             docker run -d --name shri-app -p 3000:3000 cr.yandex/${{ secrets.YC_REGISTRY_ID }}/app:${{ inputs.version }}
           EOF
+
+          # Удаляем временный ключ
+          rm ssh_key
 
       - name: Comment on issue
         run: |
