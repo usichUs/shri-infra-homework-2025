@@ -1,3 +1,7 @@
+# Версия 10 - 2025-07-19
+
+- Update README.md (ac42b11)
+
 # Версия 9 - 2025-07-11
 
 - fixed workflows (507de20)
