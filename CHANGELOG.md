@@ -1,3 +1,8 @@
+# Версия 11 - 2025-07-19
+
+- Update CHANGELOG for version 10 (75c4a7b)
+- Update README.md (ac42b11)
+
 # Версия 10 - 2025-07-19
 
 - Update README.md (ac42b11)
