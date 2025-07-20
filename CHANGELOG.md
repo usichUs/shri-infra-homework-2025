@@ -1,3 +1,7 @@
+# Версия 12 - 2025-07-20
+
+- Update CHANGELOG for version 11 (ffbec98)
+
 # Версия 11 - 2025-07-19
 
 - Update CHANGELOG for version 10 (75c4a7b)
