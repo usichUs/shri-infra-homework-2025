@@ -1,3 +1,8 @@
+# Версия 13 - 2025-07-20
+
+- Merge pull request #14 from SnezhanaLukk/main (b92fdbd)
+- check in readme (d2b3344)
+
 # Версия 12 - 2025-07-20
 
 - Update CHANGELOG for version 11 (ffbec98)
